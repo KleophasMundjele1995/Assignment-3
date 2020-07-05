@@ -1,0 +1,97 @@
+using DelimitedFiles
+
+function support_serial_qtest(mdp::Union{MDP,POMDP}, file::AbstractString; niter::Int64=100, res::Float64=1e-3)
+    qt = readdlm(file)
+    solver = ValueIterationSolver(max_iterations=niter, belres=res, verbose=true)
+    policy = solve(solver, mdp)
+    (s0, s1, s2, s3) = locals(policy)
+    npolicy = ValueIterationPolicy(mdp, deepcopy(s0))
+    nnpolicy = ValueIterationPolicy(mdp, deepcopy(s0), deepcopy(s2), deepcopy(s1))
+    s = blocks(1,1)
+    a1 = action(policy, s)
+    @inferred action(policy, s)
+    v1 = value(policy, s)
+    a2 = action(npolicy, s)
+    v2 = value(npolicy, s)
+    return (isapprox(qt, s0, rtol=1e-5)) && (policy.policy == nnpolicy.policy)
+end
+
+
+function test_complex_blocks()
+    # Load correct policy from file and verify we can reconstruct it
+    rstates = [blocks(4,3), blocks(4,6), blocks(9,3), blocks(8,8)]
+    rvals = [-10.0, -5.0, 10.0, 3.0]
+    xs = 10
+    ys = 10
+    mdp = Legacyblocks(sx=xs, sy=ys, rs = rstates, rv = rvals)
+    file = "blocks.text"
+    niter = 100
+    res = 1e-3
+
+    return support_serial_qtest(mdp, file, niter=niter, res=res)
+end
+
+function test_simple_grid()
+ 
+    mdp = Legacyblocks(sx=2, sy=3, rs = [blocksState(2,3)], rv = [10.0])
+    
+    solver = ValueIterationSolver(verbose=true)
+    policy = solve(solver, mdp)
+
+    
+    correct_policy = [1,1,1,1,4,1,1] 
+   
+    return policy.policy == correct_policy
+end
+
+function test_init_solution()
+    # Initialize the value to the solution 
+    rstates = [blocks(4,3), blocks(4,6), blocks(9,3), blocks(8,8)]
+    rvals = [-10.0, -5.0, 10.0, 3.0]
+    xs = 10
+    ys = 10
+    mdp = Legacyblocks(sx=xs, sy=ys, rs = rstates, rv = rvals)
+    qt = readdlm("blocks.text")
+    ut = maximum(qt, dims=2)[:]
+    solver = ValueIterationSolver(verbose=true, init_util=ut, belres=1e-3)
+    policy = solve(solver, mdp)
+    return isapprox(ut, policy.util, rtol=1e-5)
+end
+
+function test_not_include_Q()
+    # Load correct policy from file and verify we can reconstruct it
+    rstates = [blocks(4,3), blocks(4,6), blocks(9,3), blocks(8,8)]
+    rvals = [-10.0, -5.0, 10.0, 3.0]
+    xs = 10
+    ys = 10
+    mdp = Legacyblocks(sx=xs, sy=ys, rs = rstates, rv = rvals)
+    qt = readdlm("blocks.text")
+    ut = maximum(qt, dims=2)[:]
+    niter = 100
+    res = 1e-3
+    solver = ValueIterationSolver(verbose=true, init_util=ut, belres=1e-3, include_Q=false)
+    policy = solve(solver, mdp)
+    return isapprox(ut, policy.util, rtol=1e-3)
+end
+
+function test_warning()
+    mdp = Legacyblocks()
+    solver = ValueIterationSolver()
+    println("There should be a warning bellow: ")
+    solve(solver, mdp, verbose=true)
+end
+
+function test_type_stability()
+    mdp = Legacyblocks()
+    solver = ValueIterationSolver()
+    @inferred solve(solver, mdp)
+    return true
+end
+
+@test test_complex_gridworld() == true
+@test test_simple_grid() == true
+@test test_init_solution() == true
+@test test_not_include_Q() == true
+test_warning()
+@test_throws String solve(ValueIterationSolver(), TigerPOMDP())
+@test test_type_stability() == true
