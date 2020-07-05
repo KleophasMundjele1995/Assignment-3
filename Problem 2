@@ -1,0 +1,55 @@
+
+using JuMP
+using GLPK
+
+##
+
+# Check if there is Player1solution to the system of inequalities using Jump.
+function solveSysOfEq(dominatingStrVect::Array{Float64,2}, dominatedStrVect::Array{Float64,1})
+
+    model = Model(GLPK.Optimizer)
+
+    m, n = size(dominatingStrVect)
+    Player1= dominatingStrVect
+    Player2= dominatedStrVect
+
+    @variable(model, 0 <= p[1:n])
+    @variable(model, y[1:m])
+    @variable(model, t)
+
+    @constraint(model, sum(p[1:n]) == 1)
+    @constraint(model, y .== Player2- A*p)
+    @constraint(model, [i=1:m], t >= y[i])
+
+    @objective(model, Min, t)
+    optimize!(model)
+    
+    status::MOI.ResultStatusCode = MOI.get(model, MOI.PrimalStatus())
+    return status
+end
+
+##
+
+# a) Player1 and Player2 where a strictly dominates b
+function initAandb()
+    dominatingStrVect::Array{Float64,2} = [3; 2; 2; 3]
+    dominatedStrVect::Array{Float64,1} = [2, 2, 5, 0]
+    return dominatingStrVect, dominatedStrVect
+end
+
+dominatingStrVect, dominatedStrVect = initAandb()
+solveSysOfEq(dominatingStrVect, dominatedStrVect)
+
+##
+
+# b) Player1and Player2without strict dominance (equality between a and b)
+function initAandb()
+    dominatingStrVect::Array{Float64,2} = [3; 2; 2; 3]
+    dominatedStrVect::Array{Float64,1} = [2, 2, 5, 0]
+    return dominatingStrVect, dominatedStrVect
+end
+
+dominatingStrVect, dominatedStrVect = initAandb()
+solveSysOfEq(dominatingStrVect, dominatedStrVect)
+
+##
